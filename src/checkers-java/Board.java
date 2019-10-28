@@ -28,8 +28,18 @@ public class Board {
     int blackCount = 0;
     int whiteCount = 0;
 
-    /**
-     * Intializes board:
+    // new
+    class Saved_Move {
+        Move made_move;
+        Vector<Vector<Integer>> enemy_list;
+        boolean become_king;
+     }
+
+     Vector<Saved_Move> saved_move_list = new Vector<Saved_Move>();
+     // end
+
+     /**
+     * Initializes board:
      *      M = number of rows
      *      N = number of columns
      *      P = number of rows containing initial checker pieces
@@ -135,31 +145,43 @@ public class Board {
      * this function tracks if any player has won
      * @return the player who wins (-1 if tie, 0 if still going, 1 or 2 for Black and White)
      */
-
-    public int isWin() {
+    public int isWin(int turn) {
         if (this.tieCount >= this.tieMax)
         {
             return -1;
         }
         boolean W = true;
         boolean B = true;
+        boolean WHasMove = true;
+        boolean BHasMove = true;
         if (this.getAllPossibleMoves(1).size() == 0) {
-            B = false;
+
+            if (turn != 1)
+                BHasMove = false;
         } else if (this.getAllPossibleMoves(2).size() == 0) {
-            W = false;
-        } else {
-            for (int row = 0; row < this.row; row++) {
-                for (int col = 0; col < this.col; col++) {
-                    Checker checker = this.board.get(row).get(col);
-                    if (checker.color == "W")
-                        W = false;
-                    else if (checker.color == "B")
-                        B = false;
-                    if (!W && !B)
-                        return 0;
-                }
+            if (turn != 2)
+                WHasMove = false;
+        }
+        if (WHasMove && !BHasMove)
+        {
+            return 2;
+        }
+        else if  (!WHasMove && BHasMove)
+        {
+            return 1;
+        }
+        for (int row = 0; row < this.row; row++) {
+            for (int col = 0; col < this.col; col++) {
+                Checker checker = this.board.get(row).get(col);
+                if (checker.color == "W")
+                    W = false;
+                else if (checker.color == "B")
+                    B = false;
+                if (!W && !B)
+                    return 0;
             }
         }
+
         if (W)
             return 2;
         else if (B)
@@ -168,8 +190,9 @@ public class Board {
             return 0;
     }
 
+
     /**
-     * Intializes game. Adds the white checkers and black checkers to the board based on the board variables (M,N,P)
+     * Initializes game. Adds the white checkers and black checkers to the board based on the board variables (M,N,P)
      * when the game starts
      * @throws InvalidParameterError raises this exception if there is a problem with the provided variables
      */
@@ -228,6 +251,12 @@ public class Board {
         //DO NOT TOUCH ANYTHING IN THIS FUNCTION
         //THE CODE LOGIC IS FROM PYTHON VERSION
 
+        // create a new saved_move object
+        Saved_Move temp_saved_move  = new Saved_Move();
+        temp_saved_move.made_move = move;
+        Vector<Vector<Integer>> saved_enemy_position = new Vector<Vector<Integer>>();
+        // end
+
         String turn = "";
 
         if (player == 1)
@@ -239,6 +268,9 @@ public class Board {
         final Vector<Position> move_list = move.seq;
         Vector<Vector<Position>> move_to_check = new Vector<Vector<Position>> ();
         final Position ultimate_start = move_list.elementAt(0);
+        // new
+        boolean is_start_check_king = this.board.get(ultimate_start.getX()).get(ultimate_start.getY()).isKing;
+        // end
         Position ultimate_end = move_list.elementAt(move_list.size()-1);
         Vector<Position> past_positions = new Vector<Position> () {{
         	addElement(ultimate_start);
@@ -254,10 +286,13 @@ public class Board {
            );}
         boolean if_capture = false;
         this.tieCount += 1;
-        for (int t = 0; t<move_to_check.size();++t){
+        for (int t = 0; t<move_to_check.size();++t)
+        {
             Position start = move_to_check.get(t).get(0);
             Position target= move_to_check.get(t).get(1);
-            if (this.isValidMove(start.getX(),start.getY(),target.getX(),target.getY(),turn) || (if_capture  && Math.abs(start.getX()-target.getX()) == 1)){
+            if (this.isValidMove(start.getX(),start.getY(),target.getX(),target.getY(),turn) ||
+                    (if_capture  && Math.abs(start.getX()-target.getX()) == 1))
+            {
                 this.board.get(start.getX()).get(start.getY()).color = ".";
                 this.board.get(target.getX()).get(target.getY()).color = turn;
                 this.board.get(target.getX()).get(target.getY()).isKing = this.board.get(start.getX()).get(start.getY()).isKing;
@@ -265,23 +300,54 @@ public class Board {
                 past_positions.addElement(target);
                 if (Math.abs(start.getX()-target.getX()) == 2)
                 {
+                    // new
+                    Vector<Integer> temp_enemy_position = new Vector<Integer>();
+                    //end
+
                     if_capture = true;
                     this.tieCount = 0;
                     Position capture_position = new Position((start.getX() + (int)(target.getX()-start.getX())/2), (start.getY() + (int)(target.getY()-start.getY())/2));
 
                     capture_positions.addElement(capture_position);
-
+                    // new record capture position
+                    temp_enemy_position.addElement(capture_position.x); //row
+                    temp_enemy_position.addElement(capture_position.y); //col
+                    temp_enemy_position.addElement(this.board.get(capture_position.getX()).get(capture_position.getY()).color == "B" ? 1 : 2);
+                    temp_enemy_position.addElement(this.board.get(capture_position.getX()).get(capture_position.getY()).isKing ? 1 : 0);
+                    saved_enemy_position.addElement(temp_enemy_position);
+                    // end
                     this.board.get(capture_position.getX()).get(capture_position.getY()).changeColor_helper(".");
                 }
-                if (turn == "B"  && target.getX() == this.row - 1)
+                if (turn == "B"  && target.getX() == this.row - 1) {
+                    // new
+                    if (!is_start_check_king)
+                        temp_saved_move.become_king = true;
+                    // end
+                    temp_saved_move.become_king = false;
                     this.board.get(target.getX()).get(target.getY()).becomeKing();
-                else if (turn == "W"  && target.getX() == 0)
+                }
+                else if (turn == "W"  && target.getX() == 0) {
+                    // end
+                    if (!is_start_check_king)
+                        temp_saved_move.become_king = true;
+                    // end
+                    temp_saved_move.become_king = false;
                     this.board.get(target.getX()).get(target.getY()).becomeKing();
+                }
+                // new
+                else
+                    temp_saved_move.become_king = false;
+                // end
+
             }
-            else {
+            else
                 throw new InvalidMoveError();
-            }
+
         }
+        // new
+        temp_saved_move.enemy_list = saved_enemy_position;
+        saved_move_list.addElement(temp_saved_move);
+        // end
     }
 
     /**
@@ -364,6 +430,51 @@ public class Board {
 	    if (diff_row == -2 && diff_col == -2 )
 	        return (chess_being_moved.isKing||chess_being_moved.color == "W") && this.board.get(chess_row - 1).get(chess_col - 1).color != turn && this.board.get(chess_row - 1).get(chess_col - 1).color != ".";
 	    return false;
+    }
+
+
+    void Undo(){
+        if (!saved_move_list.isEmpty())
+        {
+            Saved_Move temp_saved_move = saved_move_list.lastElement();
+            Position original_position = temp_saved_move.made_move.seq.firstElement();
+            Position target_position = temp_saved_move.made_move.seq.lastElement();
+
+            this.board.get(original_position.getX()).get(original_position.getY()).color =
+                        this.board.get(target_position.getX()).get(target_position.getY()).color;
+
+            if (temp_saved_move.become_king)
+                this.board.get(original_position.getX()).get(original_position.getY()).isKing = false;
+            else
+                this.board.get(original_position.getX()).get(original_position.getY()).isKing =
+                        this.board.get(target_position.getX()).get(target_position.getY()).isKing;
+
+            if (!(target_position == original_position))
+            {
+                this.board.get(target_position.getX()).get(target_position.getY()).color = ".";
+                this.board.get(target_position.getX()).get(target_position.getY()).isKing = false;
+            }
+            for (int i = 0; i < temp_saved_move.enemy_list.size(); i++)
+            {
+                int x = temp_saved_move.enemy_list.elementAt(i).get(0);
+                int y = temp_saved_move.enemy_list.elementAt(i).get(1);
+                int c = temp_saved_move.enemy_list.elementAt(i).get(2);
+                int k = temp_saved_move.enemy_list.elementAt(i).get(3);
+
+                this.board.get(x).get(y).color = (c == 1? "B" : "W");
+                this.board.get(x).get(y).isKing = (k == 0? false : true);
+                if (c==1){
+                    this.blackCount += 1;
+                }
+                else{
+                    this.whiteCount += 1;
+                }
+                
+            }
+            this.tieCount -= 1;
+            saved_move_list.remove(saved_move_list.size()-1);
+        }
+
     }
 
 

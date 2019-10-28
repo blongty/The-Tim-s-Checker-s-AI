@@ -6,8 +6,9 @@ We are following the javadoc docstring format which is:
 @return tag describes what the function returns
 @raise tag describes the errors this function can raise
 """
-
+import os
 import sys
+
 sys.path.append("../src/checkers-python")
 sys.path.append("../src/checkers-python/AI_Extensions")
 
