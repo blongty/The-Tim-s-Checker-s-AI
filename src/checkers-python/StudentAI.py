@@ -6,6 +6,7 @@ from BoardClasses import Board
 class StudentAI():
 
     DEPTH_LIMIT = 5
+    EARLY_GAME_TURNS = 5
 
     def __init__(self,col,row,p):
         self.col = col
@@ -17,12 +18,14 @@ class StudentAI():
         self.opponent = {1:2,2:1}
         self.color = 2
         self.depth = 0
+        self.turn = 0
     def get_move(self,move):
         if len(move) != 0:
             self.board.make_move(move,self.opponent[self.color])
         else:
             self.color = 1
 
+        self.turn += 1
         move = self.minMaxSearch(self.board)
         self.board.make_move(move, self.color)
 
@@ -77,16 +80,25 @@ class StudentAI():
     
 
     def evalFunction(self, state):
-        return self.basicEval(state)
+        if self.turn < self.EARLY_GAME_TURNS:
+            return self.pieceAndRowEval(state)
+
+        earlyLateList = self.getEarlyOrLate(state)
+        if earlyLateList[0] == 1: # late game heuristic
+            return self.lateGameKingEval(state, earlyLateList[1], earlyLateList[2])
+        else: # Early game heuristic
+            return self.pieceAndRowEval(state)
 
     def getEarlyOrLate(self, state):
         #return list of gameboard state [0 or 1 (early or lategame), ourKings, oppKings]
         #return 0 if early, or 1 if late
         totalCheckers = 0
-        ourCheckers = 0
-        ourKings = 0
-        oppCheckers = 0
-        oppKings = 0
+        numOurCheckers = 0
+        numOurKings = 0
+        numOppCheckers = 0
+        numOppKings = 0
+        ourKings = []
+        oppKings = []
         for row in range(0, len(state.board)):
             for col in range(0, len(state.board[row])):
                 checkerPiece = state.board[row][col]
@@ -94,32 +106,46 @@ class StudentAI():
                 if self.color == 1:
                     if checkerPiece.color == "B":
                         totalCheckers += 1
-                        ourCheckers += 1
+                        numOurCheckers += 1
                         if checkerPiece.is_king:
-                            ourKings += 1
+                            numOurKings += 1
+                            ourKings.append((row, col))
                     elif checkerPiece.color == "W":
                         totalCheckers += 1
-                        oppCheckers += 1
+                        numOppCheckers += 1
                         if checkerPiece.is_king:
-                            oppKings += 1
+                            numOppKings += 1
+                            oppKings.append((row, col))
                 elif self.color == 2:
                     if checkerPiece.color == "W":
                         totalCheckers += 1
-                        ourCheckers += 1
+                        numOurCheckers += 1
                         if checkerPiece.is_king:
-                            ourKings += 1
+                            numOurKings += 1
+                            ourKings.append((row, col))
                     elif checkerPiece.color == "B":
                         totalCheckers += 1
-                        oppCheckers += 1
+                        numOppCheckers += 1
                         if checkerPiece.is_king:
-                            oppKings += 1
+                            numOppKings += 1
+                            oppKings.append((row, col))
                         
-        if ourKings/ourCheckers > 0.6:
+        if numOurKings/numOurCheckers > 0.6:
             return [1, ourKings, oppKings]
         else:
             return [0, ourKings, oppKings]
 
-    
+    def lateGameKingEval(self, state, ourKings, oppKings):
+        ourDistance = 0
+        for ourKing in ourKings:
+            for oppKing in oppKings:
+                ourDistance += abs(ourKing[0] - oppKing[0]) + abs(ourKing[1] - oppKing[1])
+
+        if len(ourKings) >= len(oppKings): #attack
+            return -1 * ourDistance
+        else: #run away
+            return ourDistance
+
     #black always starts from 0,0 while white starts on the other side
     def pieceAndRowEval(self, state):
         ourCount = 0
