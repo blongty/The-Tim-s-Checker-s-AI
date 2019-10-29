@@ -18,12 +18,15 @@ class StudentAI():
         self.color = 2
         self.depth = 0
     def get_move(self,move):
-        return minMaxSearch(self.board)
+        if len(move) != 0:
+            self.board.make_move(move,self.opponent[self.color])
+        else:
+            self.color = 1
 
-         # if len(move) != 0:
-        #     self.board.make_move(move,self.opponent[self.color])
-        # else:
-        #     self.color = 1
+        move = self.minMaxSearch(self.board)
+        self.board.make_move(move, self.color)
+
+        return move
         # moves = self.board.get_all_possible_moves(self.color)
         # index = randint(0,len(moves)-1)
         # inner_index =  randint(0,len(moves[index])-1)
@@ -34,38 +37,42 @@ class StudentAI():
     def minMaxSearch(self, state):
         ourMoves = state.get_all_possible_moves(self.color)
         maxVal = float('-inf')
-        for ourMove in ourMoves:
-            state.make_move(ourMove, self.color)
-            tempMax = minValue(state)
-            if maxVal < tempMax:
-                maxVal = tempMax
-                chosenMove = ourMove
-            state.undo()
+        for moves in ourMoves:
+            for ourMove in moves:
+                state.make_move(ourMove, self.color)
+                tempMax = self.minValue(state)
+                if maxVal < tempMax:
+                    maxVal = tempMax
+                    chosenMove = ourMove
+                state.undo()
+
         return chosenMove
        
     def maxValue(self, state):
         self.depth += 1
-        if(depth >= DEPTH_LIMIT):
-            evalFunction(state)
+        if(self.depth >= self.DEPTH_LIMIT):
+            return self.evalFunction(state)
         ourMoves = state.get_all_possible_moves(self.color)
         maxVal = float('-inf')
-        for ourMove in ourMoves:
-            state.make_move(ourMove, self.color)
-            maxVal = max(maxVal, self.maxValue(state))
-            state.undo()
+        for moves in ourMoves:
+            for ourMove in moves:
+                state.make_move(ourMove, self.color)
+                maxVal = max(maxVal, self.minValue(state))
+                state.undo()
         return maxVal     
 
     
     def minValue(self, state):
         self.depth += 1
-        if(depth >= DEPTH_LIMIT):
-            evalFunction(state)
+        if(self.depth >= self.DEPTH_LIMIT):
+            return self.evalFunction(state)
         oppMoves = state.get_all_possible_moves(self.opponent[self.color])
         minVal = float('inf')
-        for oppMove in oppMoves:
-            state.make_move(oppMove, self.opponent[self.color])
-            minVal = min(minVal, self.minValue(state))
-            state.undo()
+        for moves in oppMoves:
+            for oppMove in moves:
+                state.make_move(oppMove, self.opponent[self.color])
+                minVal = min(minVal, self.maxValue(state))
+                state.undo()
         return minVal  
     
 
@@ -73,8 +80,8 @@ class StudentAI():
     def evalFunction(self, state):
         ourCount = 0
         oppCount = 0
-        for row in state.board:
-            for col in row:
+        for row in range(0, len(state.board)):
+            for col in range(0, len(state.board[row])):
                 checkerPiece = state.board[row][col]
                 if checkerPiece.color == "B" and self.color == 1:
                     if(checkerPiece.is_king):
