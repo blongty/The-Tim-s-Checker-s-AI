@@ -5,7 +5,7 @@ from BoardClasses import Board
 #Students can modify anything except the class name and exisiting functions and varibles.
 class StudentAI():
 
-    DEPTH_LIMIT = 3
+    DEPTH_LIMIT = 5
 
     def __init__(self,col,row,p):
         self.col = col
@@ -76,25 +76,175 @@ class StudentAI():
         return minVal  
     
 
-
     def evalFunction(self, state):
+        return self.basicEval(state)
+
+    def getEarlyOrLate(self, state):
+        #return list of gameboard state [0 or 1 (early or lategame), ourKings, oppKings]
+        #return 0 if early, or 1 if late
+        totalCheckers = 0
+        ourCheckers = 0
+        ourKings = 0
+        oppCheckers = 0
+        oppKings = 0
+        for row in range(0, len(state.board)):
+            for col in range(0, len(state.board[row])):
+                checkerPiece = state.board[row][col]
+
+                if self.color == 1:
+                    if checkerPiece.color == "B":
+                        totalCheckers += 1
+                        ourCheckers += 1
+                        if checkerPiece.is_king:
+                            ourKings += 1
+                    elif checkerPiece.color == "W":
+                        totalCheckers += 1
+                        oppCheckers += 1
+                        if checkerPiece.is_king:
+                            oppKings += 1
+                elif self.color == 2:
+                    if checkerPiece.color == "W":
+                        totalCheckers += 1
+                        ourCheckers += 1
+                        if checkerPiece.is_king:
+                            ourKings += 1
+                    elif checkerPiece.color == "B":
+                        totalCheckers += 1
+                        oppCheckers += 1
+                        if checkerPiece.is_king:
+                            oppKings += 1
+                        
+        if ourKings/ourCheckers > 0.6:
+            return [1, ourKings, oppKings]
+        else:
+            return [0, ourKings, oppKings]
+
+    
+    #black always starts from 0,0 while white starts on the other side
+    def pieceAndRowEval(self, state):
+        ourCount = 0
+        oppCount = 0
+        boardLen = len(state.board)
+        for row in range(0, len(state.board)):
+            for col in range(0, len(state.board[row])):
+                checkerPiece = state.board[row][col]
+
+                if self.color == 1:
+                    if checkerPiece.color == "B": #our piece
+                        if checkerPiece.is_king:
+                            ourCount += 5 + row + 2
+                        else: #in our half
+                            ourCount += 5 + row
+                        
+                    elif checkerPiece.color == "W": #their piece
+                        if checkerPiece.is_king:
+                            oppCount += 5 + (boardLen - row) + 2
+                        else:
+                            oppCount += 5 + (boardLen - row)
+
+                elif self.color == 2:
+                    if checkerPiece.color == "W": #our piece
+                        if checkerPiece.is_king:
+                            ourCount += 5 + (boardLen - row) + 2
+                        else:
+                            ourCount += 5 + (boardLen - row)
+                    elif checkerPiece.color == "B": #opponent piece
+                        if checkerPiece.is_king:
+                            oppCount += 5 + row + 2
+                        else:
+                            oppCount += 5 + row
+        
+        return ourCount - oppCount
+
+    #black always starts from 0,0 while white starts on the other side
+    def splitBoardEval(self, state):
+        ourCount = 0
+        oppCount = 0
+        midRow = len(state.board)//2 
+        for row in range(0, len(state.board)):
+            for col in range(0, len(state.board[row])):
+                checkerPiece = state.board[row][col]
+
+                if self.color == 1:
+                    if checkerPiece.color == "B": #our piece
+                        if checkerPiece.is_king:
+                            ourCount += 10
+                        elif row < midRow: #in our half
+                            ourCount += 5
+                        elif row >= midRow: #in their half
+                            ourCount += 7
+                    elif checkerPiece.color == "W": #their piece
+                        if checkerPiece.is_king:
+                            oppCount += 10
+                        elif row < midRow:
+                            oppCount += 7
+                        elif row >= midRow:
+                            oppCount += 5
+                elif self.color == 2:
+                    if checkerPiece.color == "W": #our piece
+                        if checkerPiece.is_king:
+                            ourCount += 10
+                        elif row < midRow: #we are in their half since they are now black
+                            ourCount += 7
+                        elif row >= midRow:
+                            ourCount += 5
+                    elif checkerPiece.color == "B": #opponent piece
+                        if checkerPiece.is_king:
+                            oppCount += 10
+                        elif row < midRow: #they are in their own half
+                            oppCount += 5
+                        elif row >= midRow:
+                            oppCount += 7
+        
+        return ourCount - oppCount
+                        
+
+    
+    def basicEval(self, state):
         ourCount = 0
         oppCount = 0
         for row in range(0, len(state.board)):
             for col in range(0, len(state.board[row])):
                 checkerPiece = state.board[row][col]
-                if checkerPiece.color == "B" and self.color == 1:
-                    if(checkerPiece.is_king):
-                        ourCount += 2
-                    else:
-                        ourCount += 1
-                elif checkerPiece.color == "W" and self.color != 1:
-                    if(checkerPiece.is_king):
-                        oppCount += 2
-                    else:
-                        oppCount += 1
+               
+               #We are first = Black checkers
+                if self.color == 1:
+                    if checkerPiece.color == "B":
+                        if checkerPiece.is_king:
+                            ourCount += 2
+                        else:
+                            ourCount += 1
+                    elif checkerPiece.color == "W":
+                        if checkerPiece.is_king:
+                            oppCount += 2
+                        else:
+                            oppCount += 1
+                elif self.color == 2: #We are second = White checkers
+                    if checkerPiece.color == "W":
+                        if checkerPiece.is_king:
+                            ourCount += 2
+                        else: 
+                            ourCount += 1
+                    elif checkerPiece.color == "B":
+                        if checkerPiece.is_king:
+                            oppCount += 2
+                        else:
+                            oppCount += 1
 
         return ourCount - oppCount
+        
+                # if checkerPiece.color == "B" and self.color == 1:
+                #     if(checkerPiece.is_king):
+                #         ourCount += 2
+                #     else:
+                #         ourCount += 1
+                # elif checkerPiece.color == "W" and self.color == 1:
+                #     if(checkerPiece.is_king):
+                #         oppCount += 2
+                #     else:
+                #         oppCount += 1
+
+
                     
 
                     
