@@ -37,13 +37,54 @@ class StudentAI():
         # self.board.make_move(move,self.color)       
         # return move
 
+    # def minMaxSearch(self, state):
+    #     ourMoves = state.get_all_possible_moves(self.color)
+    #     maxVal = float('-inf')
+    #     for moves in ourMoves:
+    #         for ourMove in moves:
+    #             state.make_move(ourMove, self.color)
+    #             tempMax = self.minValue(state)
+    #             if maxVal < tempMax:
+    #                 maxVal = tempMax
+    #                 chosenMove = ourMove
+    #             state.undo()
+
+    #     return chosenMove
+       
+    # def maxValue(self, state):
+    #     self.depth += 1
+    #     if(self.depth >= self.DEPTH_LIMIT):
+    #         return self.evalFunction(state)
+    #     ourMoves = state.get_all_possible_moves(self.color)
+    #     maxVal = float('-inf')
+    #     for moves in ourMoves:
+    #         for ourMove in moves:
+    #             state.make_move(ourMove, self.color)
+    #             maxVal = max(maxVal, self.minValue(state))
+    #             state.undo()
+    #     return maxVal     
+
+    
+    # def minValue(self, state):
+    #     self.depth += 1
+    #     if(self.depth >= self.DEPTH_LIMIT):
+    #         return self.evalFunction(state)
+    #     oppMoves = state.get_all_possible_moves(self.opponent[self.color])
+    #     minVal = float('inf')
+    #     for moves in oppMoves:
+    #         for oppMove in moves:
+    #             state.make_move(oppMove, self.opponent[self.color])
+    #             minVal = min(minVal, self.maxValue(state))
+    #             state.undo()
+    #     return minVal  
+    
     def minMaxSearch(self, state):
         ourMoves = state.get_all_possible_moves(self.color)
         maxVal = float('-inf')
         for moves in ourMoves:
             for ourMove in moves:
                 state.make_move(ourMove, self.color)
-                tempMax = self.minValue(state)
+                tempMax = self.minValue(state, 0)
                 if maxVal < tempMax:
                     maxVal = tempMax
                     chosenMove = ourMove
@@ -51,39 +92,44 @@ class StudentAI():
 
         return chosenMove
        
-    def maxValue(self, state):
-        self.depth += 1
-        if(self.depth >= self.DEPTH_LIMIT):
-            return self.evalFunction(state)
+    def maxValue(self, state, depth):
+        depth += 1
         ourMoves = state.get_all_possible_moves(self.color)
+        if(depth >= self.DEPTH_LIMIT) or len(ourMoves) == 0:
+            return self.evalFunction(state)
+        
         maxVal = float('-inf')
         for moves in ourMoves:
             for ourMove in moves:
                 state.make_move(ourMove, self.color)
-                maxVal = max(maxVal, self.minValue(state))
+                maxVal = max(maxVal, self.minValue(state, depth))
                 state.undo()
         return maxVal     
 
     
-    def minValue(self, state):
-        self.depth += 1
-        if(self.depth >= self.DEPTH_LIMIT):
-            return self.evalFunction(state)
+    def minValue(self, state, depth):
+        depth += 1
         oppMoves = state.get_all_possible_moves(self.opponent[self.color])
+        if(depth >= self.DEPTH_LIMIT) or len(oppMoves) == 0:
+            return self.evalFunction(state)
+        
         minVal = float('inf')
         for moves in oppMoves:
             for oppMove in moves:
                 state.make_move(oppMove, self.opponent[self.color])
-                minVal = min(minVal, self.maxValue(state))
+                minVal = min(minVal, self.maxValue(state, depth))
                 state.undo()
         return minVal  
-    
 
     def evalFunction(self, state):
         if self.turn < self.EARLY_GAME_TURNS:
             return self.pieceAndRowEval(state)
 
         earlyLateList = self.getEarlyOrLate(state)
+       
+        if earlyLateList[0] == -1: #In this state, we have no pieces
+            return float('-inf')
+
         if earlyLateList[0] == 1: # late game heuristic
             return self.lateGameKingEval(state, earlyLateList[1], earlyLateList[2])
         else: # Early game heuristic
@@ -129,8 +175,11 @@ class StudentAI():
                         if checkerPiece.is_king:
                             numOppKings += 1
                             oppKings.append((row, col))
-                        
-        if numOurKings/numOurCheckers > 0.6:
+
+        if numOurCheckers == 0:
+            return [-1, ourKings, oppKings]                
+
+        if numOurKings/numOurCheckers == 1:
             return [1, ourKings, oppKings]
         else:
             return [0, ourKings, oppKings]
@@ -141,7 +190,7 @@ class StudentAI():
             for oppKing in oppKings:
                 ourDistance += abs(ourKing[0] - oppKing[0]) + abs(ourKing[1] - oppKing[1])
 
-        if len(ourKings) >= len(oppKings): #attack
+        if len(ourKings) > len(oppKings): #attack
             return -1 * ourDistance
         else: #run away
             return ourDistance
@@ -158,9 +207,9 @@ class StudentAI():
                 if self.color == 1:
                     if checkerPiece.color == "B": #our piece
                         if checkerPiece.is_king:
-                            ourCount += 5 + row + 2
+                            ourCount += 5 + (row + 1) + 2
                         else: #in our half
-                            ourCount += 5 + row
+                            ourCount += 5 + (row + 1)
                         
                     elif checkerPiece.color == "W": #their piece
                         if checkerPiece.is_king:
@@ -176,9 +225,9 @@ class StudentAI():
                             ourCount += 5 + (boardLen - row)
                     elif checkerPiece.color == "B": #opponent piece
                         if checkerPiece.is_king:
-                            oppCount += 5 + row + 2
+                            oppCount += 5 + (row + 1) + 2
                         else:
-                            oppCount += 5 + row
+                            oppCount += 5 + (row + 1)
         
         return ourCount - oppCount
 
