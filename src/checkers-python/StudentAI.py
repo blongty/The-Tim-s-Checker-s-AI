@@ -57,7 +57,7 @@ class StudentAI():
 
 
     def maxValue(self, state, depth):
-        isWin = state.board.is_win(self.TURN_COLOR_MAP[self.opponent[self.color]])
+        isWin = state.is_win(self.TURN_COLOR_MAP[self.opponent[self.color]])
         if isWin != 0:
             if isWin == self.color:
                 return 999999999
@@ -79,7 +79,7 @@ class StudentAI():
 
     
     def minValue(self, state, depth):
-        isWin = state.board.is_win(self.TURN_COLOR_MAP[self.color])
+        isWin = state.is_win(self.TURN_COLOR_MAP[self.color])
         if isWin != 0:
             if isWin == self.color:
                 return 999999999
