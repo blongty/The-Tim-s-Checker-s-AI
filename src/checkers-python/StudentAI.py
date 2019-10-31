@@ -5,7 +5,7 @@ from BoardClasses import Board
 #Students can modify anything except the class name and exisiting functions and varibles.
 class StudentAI():
 
-    DEPTH_LIMIT = 5
+    DEPTH_LIMIT = 4
     EARLY_GAME_TURNS = 5
     TURN_COLOR_MAP = {1 : "B", 2: "W"}
 
