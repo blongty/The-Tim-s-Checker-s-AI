@@ -5,8 +5,8 @@ from BoardClasses import Board
 #Students can modify anything except the class name and exisiting functions and varibles.
 class StudentAI():
 
-    DEPTH_LIMIT = 4
-    EARLY_GAME_TURNS = 5
+    DEPTH_LIMIT = 6
+    EARLY_GAME_TURNS = 10
     TURN_COLOR_MAP = {1 : "B", 2: "W"}
 
     def __init__(self,col,row,p):
@@ -42,12 +42,14 @@ class StudentAI():
 
 
     def minMaxSearch(self, state):
+        # Get all of our moves
         ourMoves = state.get_all_possible_moves(self.color)
         maxVal = float('-inf')
+        # Iterate through all of our moves to find the max of them
         for moves in ourMoves:
             for ourMove in moves:
                 state.make_move(ourMove, self.color)
-                tempMax = self.minValue(state, 0)
+                tempMax = self.minValue(state, 1, float('-inf'), float('inf'))
                 if maxVal < tempMax:
                     maxVal = tempMax
                     chosenMove = ourMove
@@ -56,7 +58,8 @@ class StudentAI():
         return chosenMove
 
 
-    def maxValue(self, state, depth):
+    def maxValue(self, state, depth, alpha, beta):
+        #Check if this state is a win state
         isWin = state.is_win(self.TURN_COLOR_MAP[self.opponent[self.color]])
         if isWin != 0:
             if isWin == self.color:
@@ -64,21 +67,25 @@ class StudentAI():
             elif isWin == self.opponent[self.color]:
                 return -999999999
 
-        depth += 1
+        #Get all of our moves and check if we have hit depth limit. If we have, run eval function
         ourMoves = state.get_all_possible_moves(self.color)
         if(depth >= self.DEPTH_LIMIT) or len(ourMoves) == 0:
             return self.evalFunction(state)
         
-        maxVal = float('-inf')
+        v = float('-inf')
+        depth += 1
         for moves in ourMoves:
             for ourMove in moves:
                 state.make_move(ourMove, self.color)
-                maxVal = max(maxVal, self.minValue(state, depth))
+                v = max(v, self.minValue(state, depth, alpha, beta))
                 state.undo()
-        return maxVal     
+                if v >= beta:
+                    return v
+                alpha = max(alpha, v)
+        return v     
 
     
-    def minValue(self, state, depth):
+    def minValue(self, state, depth, alpha, beta):
         isWin = state.is_win(self.TURN_COLOR_MAP[self.color])
         if isWin != 0:
             if isWin == self.color:
@@ -86,18 +93,21 @@ class StudentAI():
             elif isWin == self.opponent[self.color]:
                 return -999999999
 
-        depth += 1
         oppMoves = state.get_all_possible_moves(self.opponent[self.color])
         if(depth >= self.DEPTH_LIMIT) or len(oppMoves) == 0:
             return self.evalFunction(state)
         
-        minVal = float('inf')
+        v = float('inf')
+        depth += 1
         for moves in oppMoves:
             for oppMove in moves:
                 state.make_move(oppMove, self.opponent[self.color])
-                minVal = min(minVal, self.maxValue(state, depth))
+                v = min(v, self.maxValue(state, depth, alpha, beta))
                 state.undo()
-        return minVal  
+                if v <= alpha:
+                    return v
+                beta = min(beta, v)
+        return v  
 
 
     def evalFunction(self, state):
@@ -159,7 +169,7 @@ class StudentAI():
         if numOurCheckers == 0:
             return [-1, ourKings, oppKings]                
 
-        if numOurKings/numOurCheckers == 1:
+        if numOurKings > numOppKings or numOurKings/numOurCheckers == 1:
             return [1, ourKings, oppKings]
         else:
             return [0, ourKings, oppKings]
