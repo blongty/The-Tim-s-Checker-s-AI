@@ -9,11 +9,10 @@ class TimeFlags(Enum):
     UNDER = 0
     OVER = 1
 
-
 #The following part should be completed by students.
 #Students can modify anything except the class name and exisiting functions and varibles.
 class StudentAI():
-    DEPTH_LIMIT = 2
+    INITIAL_DEPTH_LIMIT = 2
     EARLY_GAME_TURNS = 10
     TURN_COLOR_MAP = {1 : "B", 2: "W"}
 
@@ -29,26 +28,58 @@ class StudentAI():
         self.depth = 0
         self.turn = 0
         self.control = asyncio.get_event_loop()
+        self.iterative_depth_limit = self.INITIAL_DEPTH_LIMIT
         self.time_left = TimeFlags.UNDER
+        self.time_used = 0
+        self.upper_depth_limit = float('inf')
 
 
-    # After 20 seconds, will say that there is no more time
-    async def timer(self, t):
-        await asyncio.sleep(t)
+    # Timer, which can to have set values based on total used time. Min sleep must be > 1
+    async def timer(self, state):
+        # our_count = self.countOurPieces(state)
+        # if self.time_used < 120:          # Use this sleep before two minute mark
+        #     if our_count <= self.p*self.row/2*0.4:
+        #         self.upper_depth_limit = 12
+        #         await asyncio.sleep(20)
+        #     else:
+        #         self.upper_depth_limit = 2
+        #         await asyncio.sleep(1)
+        if self.time_used < 120:          # Use this sleep before two minute mark
+            self.upper_depth_limit = 3
+            await asyncio.sleep(20)
+        
+        elif self.time_used < 240:          # Four minute mark
+            self.upper_depth_limit = 6
+            await asyncio.sleep(10)
+       
+        elif self.time_used < 360:          # Six minute mark
+            self.upper_depth_limit = 5
+            await asyncio.sleep(8)
+        
+        elif self.time_used < 420:          # Seven minute mark
+            self.upper_depth_limit = 5
+            await asyncio.sleep(5)
+        
+        else:                               # Anything longer than above
+            self.upper_depth_limit = 4
+            await asyncio.sleep(1)
+        
+        # After waiting, set time to over time
         self.time_left = TimeFlags.OVER
 
 
     async def min_max_start(self):
         # Create tasks which will be ran concurrently
-        time_limit = asyncio.Task(self.timer(20))
-        minmax = asyncio.Task(self.minMaxSearch(self.board))
+        self.task_timer = asyncio.Task(self.timer(self.board))
+        self.task_minmax = asyncio.Task(self.minMaxSearch(self.board))
 
         # Run tasks together at the same time, returns minimax moves, hence [0]
-        chosen_move = await asyncio.gather(minmax, time_limit)
+        chosen_move = await asyncio.gather(self.task_minmax, self.task_timer)
         return chosen_move[0]
 
 
     def get_move(self,move):
+        start_time = self.control.time()
         if len(move) != 0:
             self.board.make_move(move,self.opponent[self.color])
         else:
@@ -59,6 +90,8 @@ class StudentAI():
         move = self.control.run_until_complete(self.min_max_start())
         self.board.make_move(move, self.color)
 
+        # Add to our ongoing used time, 8 minute time limit
+        self.time_used += self.control.time() - start_time
         return move
         # moves = self.board.get_all_possible_moves(self.color)
         # index = randint(0,len(moves)-1)
@@ -72,27 +105,39 @@ class StudentAI():
         # Get all of our moves
         ourMoves = state.get_all_possible_moves(self.color)
         maxVal = float('-inf')
+        
         # Iterate through all of our moves to find the max of them
         self.time_left = TimeFlags.UNDER
+        self.iterative_depth_limit = self.INITIAL_DEPTH_LIMIT
         while self.time_left != TimeFlags.OVER:
             for moves in ourMoves:
                 for ourMove in moves:
+                    # If we're over time, just return our current best
+                    if self.time_left == TimeFlags.OVER:
+                        return lastBest
                     state.make_move(ourMove, self.color)
-                    tempMax = self.minValue(state, 1, float('-inf'), float('inf'))
+                    tempMax = await self.minValue(state, 1, float('-inf'), float('inf'))
                     if maxVal < tempMax:
                         maxVal = tempMax
                         chosenMove = ourMove
                     state.undo()
-
-            self.DEPTH_LIMIT += 1
-            await asyncio.sleep(1)
+            lastBest = chosenMove
+            # Upon each iteration, increase depth limit by 1
+            self.iterative_depth_limit += 1
+           
+            # If we reached out set max, stop iterating and just return what we have
+            if self.iterative_depth_limit > self.upper_depth_limit:
+                break
+            
+            # Context switch back to the timer, to check if it's ran out
+            await asyncio.sleep(0)
         
         # Return depth limit back to what it was originally
-        self.DEPTH_LIMIT = 2
-        return chosenMove
+        self.iterative_depth_limit = self.INITIAL_DEPTH_LIMIT
+        return lastBest
 
 
-    def maxValue(self, state, depth, alpha, beta):
+    async def maxValue(self, state, depth, alpha, beta):
         #Check if this state is a win state
         isWin = state.is_win(self.TURN_COLOR_MAP[self.opponent[self.color]])
         if isWin != 0:
@@ -100,10 +145,10 @@ class StudentAI():
                 return 999999999
             elif isWin == self.opponent[self.color]:
                 return -999999999
-
+        await asyncio.sleep(0)
         #Get all of our moves and check if we have hit depth limit. If we have, run eval function
         ourMoves = state.get_all_possible_moves(self.color)
-        if(depth >= self.DEPTH_LIMIT) or len(ourMoves) == 0:
+        if(depth >= self.iterative_depth_limit) or len(ourMoves) == 0 or self.time_left == TimeFlags.OVER:
             return self.evalFunction(state)
         
         v = float('-inf')
@@ -111,7 +156,7 @@ class StudentAI():
         for moves in ourMoves:
             for ourMove in moves:
                 state.make_move(ourMove, self.color)
-                v = max(v, self.minValue(state, depth, alpha, beta))
+                v = max(v, await self.minValue(state, depth, alpha, beta))
                 state.undo()
                 if v >= beta:
                     return v
@@ -119,16 +164,16 @@ class StudentAI():
         return v     
 
     
-    def minValue(self, state, depth, alpha, beta):
+    async def minValue(self, state, depth, alpha, beta):
         isWin = state.is_win(self.TURN_COLOR_MAP[self.color])
         if isWin != 0:
             if isWin == self.color:
                 return 999999999
             elif isWin == self.opponent[self.color]:
                 return -999999999
-
+        await asyncio.sleep(0)
         oppMoves = state.get_all_possible_moves(self.opponent[self.color])
-        if(depth >= self.DEPTH_LIMIT) or len(oppMoves) == 0:
+        if(depth >= self.iterative_depth_limit) or len(oppMoves) == 0 or self.time_left == TimeFlags.OVER:
             return self.evalFunction(state)
         
         v = float('inf')
@@ -136,7 +181,7 @@ class StudentAI():
         for moves in oppMoves:
             for oppMove in moves:
                 state.make_move(oppMove, self.opponent[self.color])
-                v = min(v, self.maxValue(state, depth, alpha, beta))
+                v = min(v, await self.maxValue(state, depth, alpha, beta))
                 state.undo()
                 if v <= alpha:
                     return v
@@ -158,6 +203,19 @@ class StudentAI():
         else: # Early game heuristic
             return self.pieceAndRowEval(state)
 
+    def countOurPieces(self, state):
+        ongoing = 0
+        for row in range(0, len(state.board)):
+            for col in range(0, len(state.board[row])):
+                checkerPiece = state.board[row][col]
+                
+                if self.color == 1:
+                    if checkerPiece.color == "B":
+                        ongoing += 1
+                elif self.color == 2:
+                    if checkerPiece.color == "W":
+                        ongoing += 1
+        return ongoing
 
     def getEarlyOrLate(self, state):
         #return list of gameboard state [0 or 1 (early or lategame), ourKings, oppKings]
