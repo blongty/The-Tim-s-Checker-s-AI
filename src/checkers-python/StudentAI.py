@@ -1,11 +1,19 @@
 from random import randint
 from BoardClasses import Move
 from BoardClasses import Board
+import asyncio
+from enum import Enum
+
+
+class TimeFlags(Enum):
+    UNDER = 0
+    OVER = 1
+
+
 #The following part should be completed by students.
 #Students can modify anything except the class name and exisiting functions and varibles.
 class StudentAI():
-
-    DEPTH_LIMIT = 6
+    DEPTH_LIMIT = 2
     EARLY_GAME_TURNS = 10
     TURN_COLOR_MAP = {1 : "B", 2: "W"}
 
@@ -20,6 +28,24 @@ class StudentAI():
         self.color = 2
         self.depth = 0
         self.turn = 0
+        self.control = asyncio.get_event_loop()
+        self.time_left = TimeFlags.UNDER
+
+
+    # After 20 seconds, will say that there is no more time
+    async def timer(self, t):
+        await asyncio.sleep(t)
+        self.time_left = TimeFlags.OVER
+
+
+    async def min_max_start(self):
+        # Create tasks which will be ran concurrently
+        time_limit = asyncio.Task(self.timer(20))
+        minmax = asyncio.Task(self.minMaxSearch(self.board))
+
+        # Run tasks together at the same time, returns minimax moves, hence [0]
+        chosen_move = await asyncio.gather(minmax, time_limit)
+        return chosen_move[0]
 
 
     def get_move(self,move):
@@ -27,9 +53,10 @@ class StudentAI():
             self.board.make_move(move,self.opponent[self.color])
         else:
             self.color = 1
-
         self.turn += 1
-        move = self.minMaxSearch(self.board)
+
+        # Start the asynchronous minmax timer search
+        move = self.control.run_until_complete(self.min_max_start())
         self.board.make_move(move, self.color)
 
         return move
@@ -41,20 +68,27 @@ class StudentAI():
         # return move
 
 
-    def minMaxSearch(self, state):
+    async def minMaxSearch(self, state):
         # Get all of our moves
         ourMoves = state.get_all_possible_moves(self.color)
         maxVal = float('-inf')
         # Iterate through all of our moves to find the max of them
-        for moves in ourMoves:
-            for ourMove in moves:
-                state.make_move(ourMove, self.color)
-                tempMax = self.minValue(state, 1, float('-inf'), float('inf'))
-                if maxVal < tempMax:
-                    maxVal = tempMax
-                    chosenMove = ourMove
-                state.undo()
+        self.time_left = TimeFlags.UNDER
+        while self.time_left != TimeFlags.OVER:
+            for moves in ourMoves:
+                for ourMove in moves:
+                    state.make_move(ourMove, self.color)
+                    tempMax = self.minValue(state, 1, float('-inf'), float('inf'))
+                    if maxVal < tempMax:
+                        maxVal = tempMax
+                        chosenMove = ourMove
+                    state.undo()
 
+            self.DEPTH_LIMIT += 1
+            await asyncio.sleep(1)
+        
+        # Return depth limit back to what it was originally
+        self.DEPTH_LIMIT = 2
         return chosenMove
 
 
