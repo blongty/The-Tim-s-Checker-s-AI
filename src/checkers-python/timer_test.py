@@ -30,7 +30,13 @@ async def test():
     #print('returning values a =', a[0], 'b =', a[1], flush=True)
 
 
-print('before async run', flush=True)
+# print('before async run', flush=True)
+# loop = asyncio.get_event_loop()
+# loop.run_until_complete(test())
+# print('after async run', flush=True)
+
 loop = asyncio.get_event_loop()
-loop.run_until_complete(test())
-print('after async run', flush=True)
+a = loop.time()
+time.sleep(5)
+b = loop.time()
+print(b-a)
