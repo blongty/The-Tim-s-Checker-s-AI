@@ -3,6 +3,7 @@ from BoardClasses import Move
 from BoardClasses import Board
 import asyncio
 from enum import Enum
+import time
 
 
 class TimeFlags(Enum):
@@ -32,10 +33,12 @@ class StudentAI():
         self.time_left = TimeFlags.UNDER
         self.time_used = 0
         self.upper_depth_limit = float('inf')
+        self.time_limit = 480       # 8 minutes
 
 
     # Timer, which can to have set values based on total used time. Min sleep must be > 1
     async def timer(self, state):
+        # Here was originally a hueristic to determin which sleep pattern/upper depth limit to use
         # our_count = self.countOurPieces(state)
         # if self.time_used < 120:          # Use this sleep before two minute mark
         #     if our_count <= self.p*self.row/2*0.4:
@@ -44,30 +47,38 @@ class StudentAI():
         #     else:
         #         self.upper_depth_limit = 2
         #         await asyncio.sleep(1)
-        if self.time_used < 120:          # Use this sleep before two minute mark
-            self.upper_depth_limit = 3
-            await asyncio.sleep(20)
         
-        elif self.time_used < 240:          # Four minute mark
-            self.upper_depth_limit = 6
-            await asyncio.sleep(10)
-       
-        elif self.time_used < 360:          # Six minute mark
-            self.upper_depth_limit = 5
-            await asyncio.sleep(8)
+        try:
+            if self.time_used < 120:          # Use this sleep before two minute mark
+                self.upper_depth_limit = 9
+                await asyncio.sleep(20)
+            
+            elif self.time_used < 240:          # Four minute mark
+                self.upper_depth_limit = 6
+                await asyncio.sleep(10)
         
-        elif self.time_used < 420:          # Seven minute mark
-            self.upper_depth_limit = 5
-            await asyncio.sleep(5)
+            elif self.time_used < 360:          # Six minute mark
+                self.upper_depth_limit = 5
+                await asyncio.sleep(8)
+            
+            elif self.time_used < 420:          # Seven minute mark
+                self.upper_depth_limit = 5
+                await asyncio.sleep(5)
+            
+            else:                               # Anything longer than above
+                self.upper_depth_limit = 4
+                await asyncio.sleep(1)
+            
+            # After waiting, set time to over time
+            self.time_left = TimeFlags.OVER
         
-        else:                               # Anything longer than above
-            self.upper_depth_limit = 4
-            await asyncio.sleep(1)
-        
-        # After waiting, set time to over time
-        self.time_left = TimeFlags.OVER
+        # Handle when we cancel the timer
+        except asyncio.CancelledError:
+            self.time_left = TimeFlags.UNDER
 
 
+    # Asyncio function that will create the tasks and run them concurrently
+    # It will wait until both are either finished or canceled, and then return that move
     async def min_max_start(self):
         # Create tasks which will be ran concurrently
         self.task_timer = asyncio.Task(self.timer(self.board))
@@ -79,7 +90,9 @@ class StudentAI():
 
 
     def get_move(self,move):
+        # Keep track of time so we can figure out total time used
         start_time = self.control.time()
+        
         if len(move) != 0:
             self.board.make_move(move,self.opponent[self.color])
         else:
@@ -88,23 +101,21 @@ class StudentAI():
 
         # Start the asynchronous minmax timer search
         move = self.control.run_until_complete(self.min_max_start())
+        
+        # Make our move
         self.board.make_move(move, self.color)
 
-        # Add to our ongoing used time, 8 minute time limit
+        # Add to our ongoing used time, 8 minute time limit as defined under self.timer()
         self.time_used += self.control.time() - start_time
+        
         return move
-        # moves = self.board.get_all_possible_moves(self.color)
-        # index = randint(0,len(moves)-1)
-        # inner_index =  randint(0,len(moves[index])-1)
-        # move = moves[index][inner_index]
-        # self.board.make_move(move,self.color)       
-        # return move
 
 
     async def minMaxSearch(self, state):
         # Get all of our moves
         ourMoves = state.get_all_possible_moves(self.color)
         maxVal = float('-inf')
+        lastBestVal = float('-inf')
         
         # Iterate through all of our moves to find the max of them
         self.time_left = TimeFlags.UNDER
@@ -114,14 +125,19 @@ class StudentAI():
                 for ourMove in moves:
                     # If we're over time, just return our current best
                     if self.time_left == TimeFlags.OVER:
-                        return lastBest
+                        return lastBestMove
                     state.make_move(ourMove, self.color)
                     tempMax = await self.minValue(state, 1, float('-inf'), float('inf'))
                     if maxVal < tempMax:
                         maxVal = tempMax
                         chosenMove = ourMove
                     state.undo()
-            lastBest = chosenMove
+            
+            # If maxVal is better than the one kept from the lastBestMove, set those as lastBest
+            if lastBestVal < maxVal:
+                lastBestVal = maxVal
+                lastBestMove = chosenMove
+            
             # Upon each iteration, increase depth limit by 1
             self.iterative_depth_limit += 1
            
@@ -132,9 +148,12 @@ class StudentAI():
             # Context switch back to the timer, to check if it's ran out
             await asyncio.sleep(0)
         
-        # Return depth limit back to what it was originally
+        # Return depth limit back to what it was originally, cancel the timer because we've reached
+        # the upper depth limit.
         self.iterative_depth_limit = self.INITIAL_DEPTH_LIMIT
-        return lastBest
+        self.task_timer.cancel()
+        
+        return lastBestMove
 
 
     async def maxValue(self, state, depth, alpha, beta):
@@ -146,7 +165,7 @@ class StudentAI():
             elif isWin == self.opponent[self.color]:
                 return -999999999
         await asyncio.sleep(0)
-        #Get all of our moves and check if we have hit depth limit. If we have, run eval function
+        #Get all of our moves and check if we have hit depth limit or if timer runs out. If we have, run eval function
         ourMoves = state.get_all_possible_moves(self.color)
         if(depth >= self.iterative_depth_limit) or len(ourMoves) == 0 or self.time_left == TimeFlags.OVER:
             return self.evalFunction(state)
