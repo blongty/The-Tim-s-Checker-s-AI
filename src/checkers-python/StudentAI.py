@@ -117,7 +117,6 @@ class StudentAI():
     async def minMaxSearch(self, state):
         # Get all of our moves
         ourMoves = state.get_all_possible_moves(self.color)
-        maxVal = float('-inf')
         lastBestVal = float('-inf')
         
         # Iterate through all of our moves to find the max of them
@@ -132,15 +131,14 @@ class StudentAI():
                     
                     state.make_move(ourMove, self.color)
                     tempMax = await self.minValue(state, 1, float('-inf'), float('inf'))
-                    if maxVal < tempMax:
-                        maxVal = tempMax
-                        chosenMove = ourMove
+                    if lastBestVal < tempMax:
+                        lastBestVal = tempMax
+                        lastBestMove = ourMove
+                    
                     state.undo()
             
             # If maxVal is better than the one kept from the lastBestMove, set those as lastBest
-            if lastBestVal < maxVal:
-                lastBestVal = maxVal
-                lastBestMove = chosenMove
+            
             
             # Upon each iteration, increase depth limit by 1
             self.iterative_depth_limit += 1
