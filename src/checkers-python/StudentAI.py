@@ -54,19 +54,19 @@ class StudentAI():
                 await asyncio.sleep(15)
             
             elif self.time_used < 240:          # Four minute mark
-                #self.upper_depth_limit = 7
+                self.upper_depth_limit = 7
                 await asyncio.sleep(10)
         
             elif self.time_used < 360:          # Six minute mark
-                #self.upper_depth_limit = 5
+                self.upper_depth_limit = 7
                 await asyncio.sleep(8)
             
             elif self.time_used < 420:          # Seven minute mark
-                #self.upper_depth_limit = 5
+                self.upper_depth_limit = 6
                 await asyncio.sleep(5)
             
             else:                               # Anything longer than above
-                #self.upper_depth_limit = 4
+                self.upper_depth_limit = 5
                 await asyncio.sleep(1)
             
             # After waiting, set time to over time
@@ -126,20 +126,24 @@ class StudentAI():
         while self.time_left != TimeFlags.OVER:
             for moves in ourMoves:
                 for ourMove in moves:
-                    # If we're over time, just return our current best
-                    if self.time_left == TimeFlags.OVER:
-                        return lastBestMove
                     state.make_move(ourMove, self.color)
                     tempMax = await self.minValue(state, 1, float('-inf'), float('inf'))
                     if maxVal < tempMax:
                         maxVal = tempMax
                         chosenMove = ourMove
+                        
+                        # If maxVal is better than the one kept from the lastBestMove, set those as lastBest
+                        if lastBestVal < maxVal:
+                            lastBestVal = maxVal
+                            lastBestMove = chosenMove
+                    
+                    # If we're over time, just return our current best
+                    if self.time_left == TimeFlags.OVER:
+                        return lastBestMove
+                    
                     state.undo()
             
-            # If maxVal is better than the one kept from the lastBestMove, set those as lastBest
-            if lastBestVal < maxVal:
-                lastBestVal = maxVal
-                lastBestMove = chosenMove
+            
             
             # Upon each iteration, increase depth limit by 1
             self.iterative_depth_limit += 1
