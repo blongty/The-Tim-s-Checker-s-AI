@@ -13,7 +13,7 @@ class TimeFlags(Enum):
 #The following part should be completed by students.
 #Students can modify anything except the class name and exisiting functions and varibles.
 class StudentAI():
-    INITIAL_DEPTH_LIMIT = 2
+    INITIAL_DEPTH_LIMIT = 5
     EARLY_GAME_TURNS = 10
     TURN_COLOR_MAP = {1 : "B", 2: "W"}
 
@@ -50,23 +50,23 @@ class StudentAI():
         
         try:
             if self.time_used < 120:          # Use this sleep before two minute mark
-                self.upper_depth_limit = 9
-                await asyncio.sleep(20)
+                self.upper_depth_limit = 8
+                await asyncio.sleep(15)
             
             elif self.time_used < 240:          # Four minute mark
-                self.upper_depth_limit = 6
+                #self.upper_depth_limit = 7
                 await asyncio.sleep(10)
         
             elif self.time_used < 360:          # Six minute mark
-                self.upper_depth_limit = 5
+                #self.upper_depth_limit = 5
                 await asyncio.sleep(8)
             
             elif self.time_used < 420:          # Seven minute mark
-                self.upper_depth_limit = 5
+                #self.upper_depth_limit = 5
                 await asyncio.sleep(5)
             
             else:                               # Anything longer than above
-                self.upper_depth_limit = 4
+                #self.upper_depth_limit = 4
                 await asyncio.sleep(1)
             
             # After waiting, set time to over time
@@ -75,6 +75,9 @@ class StudentAI():
         # Handle when we cancel the timer
         except asyncio.CancelledError:
             self.time_left = TimeFlags.UNDER
+        
+        # finally:
+        #     self.upper_depth_limit = float('inf')
 
 
     # Asyncio function that will create the tasks and run them concurrently
@@ -209,18 +212,8 @@ class StudentAI():
 
 
     def evalFunction(self, state):
-        if self.turn < self.EARLY_GAME_TURNS:
-            return self.pieceAndRowEval(state)
+        return self.ieeeEvaluation(state)
 
-        earlyLateList = self.getEarlyOrLate(state)
-       
-        if earlyLateList[0] == -1: #In this state, we have no pieces
-            return -999999999
-
-        if earlyLateList[0] == 1: # late game heuristic
-            return self.lateGameKingEval(state, earlyLateList[1], earlyLateList[2])
-        else: # Early game heuristic
-            return self.pieceAndRowEval(state)
 
     def countOurPieces(self, state):
         ongoing = 0
@@ -235,6 +228,7 @@ class StudentAI():
                     if checkerPiece.color == "W":
                         ongoing += 1
         return ongoing
+
 
     def getEarlyOrLate(self, state):
         #return list of gameboard state [0 or 1 (early or lategame), ourKings, oppKings]
@@ -424,8 +418,61 @@ class StudentAI():
                 #         oppCount += 1
 
 
-                    
+    #black always starts from 0,0 while white starts on the other side
+    def ieeeEvaluation(self, state):
+        ourPawn = 0
+        ourKing = 0
+        ourMiddle = 0
+        ourRow = 0
+        oppPawn = 0
+        oppKing = 0
+        oppMiddle = 0
+        oppRow = 0
+        boardRowLen = len(state.board)
+        middleRowEnd = len(state.board) - 3
+        middleColEnd = len(state.board[0]) - 3
+        for row in range(0, len(state.board)):
+            for col in range(0, len(state.board[row])):
+                checkerPiece = state.board[row][col]
 
-                    
-                
+                if self.color == 1:
+                    if checkerPiece.color == "B": #our piece
+                        ourRow += row
+                        if row >= 2 and row <= middleRowEnd and col >= 2 and col <= middleColEnd:
+                            ourMiddle += 1 
 
+                        if checkerPiece.is_king:
+                            ourKing += 1
+                        else: 
+                            ourPawn += 1
+                        
+                    elif checkerPiece.color == "W": #their piece
+                        oppRow += boardRowLen - row - 1
+                        if row >= 2 and row <= middleRowEnd and col >= 2 and col <= middleColEnd:
+                            oppMiddle += 1
+
+                        if checkerPiece.is_king:
+                            oppKing += 1
+                        else:
+                            oppPawn += 1
+                elif self.color == 2:
+                    if checkerPiece.color == "W": #our piece
+                        ourRow += boardRowLen - row - 1
+                        if row >= 2 and row <= middleRowEnd and col >= 2 and col <= middleColEnd:
+                            ourMiddle += 1
+
+                        if checkerPiece.is_king:
+                            ourKing += 1
+                        else:
+                            ourPawn += 1
+                    elif checkerPiece.color == "B": #opponent piece
+                        oppRow += row
+                        if row >= 2 and row <= middleRowEnd and col >= 2 and col <= middleColEnd:
+                            oppMiddle += 1
+
+                        if checkerPiece.is_king:
+                            oppKing += 1
+                        else:
+                            oppPawn += 1
+        
+        return (80 * ( (ourPawn - oppPawn) + 2.5 * (ourKing - oppKing) )) + (40 * (ourRow - oppRow)) + (20 * (ourMiddle - oppMiddle)) 
