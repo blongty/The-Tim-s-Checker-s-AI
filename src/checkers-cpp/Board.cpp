@@ -312,6 +312,10 @@ void Board::makeMove(const Move& move, int player)
                 if_capture = true;
                 this->tieCount = 0;
                 Position capture_position {(start[0] + (int)(target[0]-start[0])/2), (start[1] + (int)(target[1]-start[1])/2)};
+                if(turn == "B")
+                    this->whiteCount--;
+                else
+                    this->blackCount--;
 
                 capture_positions.push_back(capture_position);
                 //record capture position
@@ -340,7 +344,10 @@ void Board::makeMove(const Move& move, int player)
                 if(!is_start_checker_king){
                     temp_saved_move.become_king = true;
                 }
-                temp_saved_move.become_king = false;
+                else{
+                    temp_saved_move.become_king = false;
+                }
+                
                 this->board[target[0]][target[1]].becomeKing();
             }
             
@@ -348,7 +355,10 @@ void Board::makeMove(const Move& move, int player)
                 if(!is_start_checker_king){
                     temp_saved_move.become_king = true;
                 }
-                temp_saved_move.become_king = false;
+                else{
+                    temp_saved_move.become_king = false;
+                }
+                
                 this->board[target[0]][target[1]].becomeKing();
             }
             else{
@@ -474,13 +484,6 @@ void Board:: Undo(){
             
             this->board[x][y].color = (c==1?"B":"W");
             this->board[x][y].isKing = (k==0?false:true);
-            if (c==1){
-                    this->blackCount += 1;
-                }
-                else{
-                    this->whiteCount += 1;
-                }
-                
 
             }
         this->tieCount -= 1;
@@ -488,6 +491,22 @@ void Board:: Undo(){
         
         
     }
+    this->blackCount = 0;
+    this->whiteCount = 0;
+    for (int row = 0; row < this->row; row++) {
+        for (int col = 0; col < this->col; col++) {
+            if (this->board[row][col].color == "W")
+            {
+                this->whiteCount++;
+            }
+            else if (this->board[row][col].color == "B")
+            {
+                 this->blackCount++;
+            }
+            
+        }
+    }
 }
+
 
 

@@ -84,6 +84,8 @@ public class Board {
             for (int j = 0;j < col;++j)
             {
                 this.board.get(i).add((new Checker(b.board.get(i).get(j).color,i,j)));
+                if (b.board.get(i).get(j).isKing)
+                    this.board.get(i).get(j).becomeKing();
             }
         }
     }
@@ -317,21 +319,32 @@ public class Board {
                     saved_enemy_position.addElement(temp_enemy_position);
                     // end
                     this.board.get(capture_position.getX()).get(capture_position.getY()).changeColor_helper(".");
+                    if(turn.equals("B"))
+                        this.whiteCount --;
+                    else
+                        this.blackCount --;
+
                 }
                 if (turn == "B"  && target.getX() == this.row - 1) {
                     // new
-                    if (!is_start_check_king)
+                    if (!is_start_check_king){
                         temp_saved_move.become_king = true;
+                    }
+                    else{
+                        temp_saved_move.become_king = false;
+                    }  
                     // end
-                    temp_saved_move.become_king = false;
+                    
                     this.board.get(target.getX()).get(target.getY()).becomeKing();
                 }
                 else if (turn == "W"  && target.getX() == 0) {
                     // end
-                    if (!is_start_check_king)
+                    if (!is_start_check_king){
                         temp_saved_move.become_king = true;
-                    // end
-                    temp_saved_move.become_king = false;
+                    }
+                    else{
+                        temp_saved_move.become_king = false;
+                    }  
                     this.board.get(target.getX()).get(target.getY()).becomeKing();
                 }
                 // new
@@ -449,7 +462,7 @@ public class Board {
                 this.board.get(original_position.getX()).get(original_position.getY()).isKing =
                         this.board.get(target_position.getX()).get(target_position.getY()).isKing;
 
-            if (!(target_position == original_position))
+            if (!(target_position.equals(original_position)))
             {
                 this.board.get(target_position.getX()).get(target_position.getY()).color = ".";
                 this.board.get(target_position.getX()).get(target_position.getY()).isKing = false;
@@ -463,19 +476,28 @@ public class Board {
 
                 this.board.get(x).get(y).color = (c == 1? "B" : "W");
                 this.board.get(x).get(y).isKing = (k == 0? false : true);
-                if (c==1){
-                    this.blackCount += 1;
-                }
-                else{
-                    this.whiteCount += 1;
-                }
                 
             }
             this.tieCount -= 1;
             saved_move_list.remove(saved_move_list.size()-1);
         }
-
+        this.blackCount = 0;
+        this.whiteCount = 0;
+        for (int row = 0; row < this.row; row++) {
+            for (int col = 0; col < this.col; col++) {
+                if (this.board.get(row).get(col).color.equals("W"))
+                {
+                    this.whiteCount++;
+                }
+                else if (this.board.get(row).get(col).color.equals("B"))
+                {
+                    this.blackCount++;
+                }
+            
+            }
+        }
     }
+
 
 
 }
