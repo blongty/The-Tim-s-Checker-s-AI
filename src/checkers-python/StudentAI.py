@@ -126,24 +126,21 @@ class StudentAI():
         while self.time_left != TimeFlags.OVER:
             for moves in ourMoves:
                 for ourMove in moves:
+                    # If we're over time, just return our current best
+                    if self.time_left == TimeFlags.OVER:
+                        return lastBestMove
+                    
                     state.make_move(ourMove, self.color)
                     tempMax = await self.minValue(state, 1, float('-inf'), float('inf'))
                     if maxVal < tempMax:
                         maxVal = tempMax
                         chosenMove = ourMove
-                        
-                        # If maxVal is better than the one kept from the lastBestMove, set those as lastBest
-                        if lastBestVal < maxVal:
-                            lastBestVal = maxVal
-                            lastBestMove = chosenMove
-                    
-                    # If we're over time, just return our current best
-                    if self.time_left == TimeFlags.OVER:
-                        return lastBestMove
-                    
                     state.undo()
             
-            
+            # If maxVal is better than the one kept from the lastBestMove, set those as lastBest
+            if lastBestVal < maxVal:
+                lastBestVal = maxVal
+                lastBestMove = chosenMove
             
             # Upon each iteration, increase depth limit by 1
             self.iterative_depth_limit += 1
