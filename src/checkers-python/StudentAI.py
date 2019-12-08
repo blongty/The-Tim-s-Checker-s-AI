@@ -34,7 +34,9 @@ class StudentAI():
         self.time_used = 0
         self.upper_depth_limit = float('inf')
         self.time_limit = 480       # 8 minutes
-
+        self.late_game_flag = False
+        self.heuristic_flag = 1 #use ieee1, if 2, use ieee2
+        self.flag_just_changed = 0
 
     # Timer, which can to have set values based on total used time. Min sleep must be > 1
     async def timer(self, state):
@@ -211,121 +213,329 @@ class StudentAI():
 
 
     def evalFunction(self, state):
-        return self.ieeeEvaluation(state)
+        if self.turn < self.EARLY_GAME_TURNS:
+            return self.ieeeEvaluation1(state) #go to their side
 
+        if self.late_game_flag:
+            if self.flag_just_changed > 0:
+                self.flag_just_changed -= 1
+                if self.heuristic_flag == 1:
+                    return self.ieeeEvaluation1(state)
+                elif self.heuristic_flag == 2:
+                    return self.ieeeEvaluation2(state)
+            else:
+                self.checkSide(state)
+                if self.heuristic_flag == 1:
+                    return self.ieeeEvaluation1(state)
+                elif self.heuristic_flag == 2:
+                    return self.ieeeEvaluation2(state)
 
-    def countOurPieces(self, state):
-        ongoing = 0
-        for row in range(0, len(state.board)):
-            for col in range(0, len(state.board[row])):
-                checkerPiece = state.board[row][col]
-                
-                if self.color == 1:
-                    if checkerPiece.color == "B":
-                        ongoing += 1
-                elif self.color == 2:
-                    if checkerPiece.color == "W":
-                        ongoing += 1
-        return ongoing
+        else:
+            self.checkLateGame(state)
+            return self.ieeeEvaluation1(state)
 
+        # earlyOrLate = self.getEarlyOrLate(state)
+        # if earlyOrLate[0] == -1:
+        #     return -999999999
+        # elif earlyOrLate[0] == 0:
+        #     return self.ieeeEvaluation(state)
+        # elif earlyOrLate[0] == 1:
+        #     return self.lateGameKingEval(state, earlyOrLate[1], earlyOrLate[2], earlyOrLate[3]) 
 
-    def getEarlyOrLate(self, state):
-        #return list of gameboard state [0 or 1 (early or lategame), ourKings, oppKings]
-        #return 0 if early, or 1 if late
-        totalCheckers = 0
+    def checkLateGame(self, state):
         numOurCheckers = 0
         numOurKings = 0
-        numOppCheckers = 0
-        numOppKings = 0
-        ourKings = []
-        oppKings = []
         for row in range(0, len(state.board)):
             for col in range(0, len(state.board[row])):
                 checkerPiece = state.board[row][col]
 
                 if self.color == 1:
                     if checkerPiece.color == "B":
-                        totalCheckers += 1
                         numOurCheckers += 1
                         if checkerPiece.is_king:
                             numOurKings += 1
-                            ourKings.append((row, col))
-                    elif checkerPiece.color == "W":
-                        totalCheckers += 1
-                        numOppCheckers += 1
-                        if checkerPiece.is_king:
-                            numOppKings += 1
-                            oppKings.append((row, col))
+
                 elif self.color == 2:
                     if checkerPiece.color == "W":
-                        totalCheckers += 1
                         numOurCheckers += 1
                         if checkerPiece.is_king:
                             numOurKings += 1
-                            ourKings.append((row, col))
-                    elif checkerPiece.color == "B":
-                        totalCheckers += 1
-                        numOppCheckers += 1
-                        if checkerPiece.is_king:
-                            numOppKings += 1
-                            oppKings.append((row, col))
-
-        if numOurCheckers == 0:
-            return [-1, ourKings, oppKings]                
-
-        if numOurKings > numOppKings or numOurKings/numOurCheckers == 1:
-            return [1, ourKings, oppKings]
-        else:
-            return [0, ourKings, oppKings]
+        
+        if numOurKings/numOurCheckers == 1:
+            self.late_game_flag = True
 
 
-    def lateGameKingEval(self, state, ourKings, oppKings):
-        ourDistance = 0
-        for ourKing in ourKings:
-            for oppKing in oppKings:
-                ourDistance += abs(ourKing[0] - oppKing[0]) + abs(ourKing[1] - oppKing[1])
+    def checkSide(self, state):
+        #return 0 if we have our troops not yet all on their side
+        #return 1 if we have our troops on their side 
+        numOurCheckers = 0
+        numSideUs = 0 
+        numSideTheirs = 0
+        if self.color == 1:
+            rowCheck = 2 if len(state.board) == 7 else 3 
+            rowCheckTheir = 4
+        elif self.color == 2:
+            rowCheck = 4
+            rowCheckTheir = 2 if len(state.board) == 7 else 3
 
-        if len(ourKings) > len(oppKings): #attack
-            return -1 * ourDistance
-        else: #run away
-            return ourDistance
+        for row in range(0, len(state.board)):
+            for col in range(0, len(state.board[row])):
+                checkerPiece = state.board[row][col]
 
+                if self.color == 1:
+                    if checkerPiece.color == "B":
+                        numOurCheckers += 1
+                        if row < rowCheck:
+                            numSideUs += 1
+                        if row > rowCheckTheir:
+                            numSideTheirs += 1
+                            
+                elif self.color == 2:
+                    if checkerPiece.color == "W":
+                        numOurCheckers += 1
+                        if row > rowCheck:
+                            numSideUs += 1
+                        if row < rowCheckTheir:
+                            numSideTheirs += 1
+                    
+        if self.heuristic_flag == 1 and numSideTheirs/numOurCheckers > 0.8:
+            self.heuristic_flag = 2
+            self.flag_just_changed = 10
+        
+        if self.heuristic_flag == 2 and numSideUs/numOurCheckers > 0.8:
+            self.heuristic_flag = 1
+            self.flag_just_changed = 10
 
     #black always starts from 0,0 while white starts on the other side
-    def pieceAndRowEval(self, state):
-        ourCount = 0
-        oppCount = 0
-        boardLen = len(state.board)
+    def ieeeEvaluation1(self, state):
+        ourPawn = 0
+        ourKing = 0
+        ourMiddle = 0
+        ourRow = 0
+        oppPawn = 0
+        oppKing = 0
+        oppMiddle = 0
+        oppRow = 0
+        boardRowLen = len(state.board)
+        middleRowEnd = len(state.board) - 3
+        middleColEnd = len(state.board[0]) - 3
         for row in range(0, len(state.board)):
             for col in range(0, len(state.board[row])):
                 checkerPiece = state.board[row][col]
 
                 if self.color == 1:
                     if checkerPiece.color == "B": #our piece
+                        ourRow += row
+                        if row >= 2 and row <= middleRowEnd and col >= 2 and col <= middleColEnd:
+                            ourMiddle += 1 
+
                         if checkerPiece.is_king:
-                            ourCount += 5 + (row + 1) + 2
-                        else: #in our half
-                            ourCount += 5 + (row + 1)
+                            ourKing += 1
+                        else: 
+                            ourPawn += 1
                         
                     elif checkerPiece.color == "W": #their piece
-                        if checkerPiece.is_king:
-                            oppCount += 5 + (boardLen - row) + 2
-                        else:
-                            oppCount += 5 + (boardLen - row)
+                        oppRow += boardRowLen - row - 1
+                        if row >= 2 and row <= middleRowEnd and col >= 2 and col <= middleColEnd:
+                            oppMiddle += 1
 
+                        if checkerPiece.is_king:
+                            oppKing += 1
+                        else:
+                            oppPawn += 1
                 elif self.color == 2:
                     if checkerPiece.color == "W": #our piece
+                        ourRow += boardRowLen - row - 1
+                        if row >= 2 and row <= middleRowEnd and col >= 2 and col <= middleColEnd:
+                            ourMiddle += 1
+
                         if checkerPiece.is_king:
-                            ourCount += 5 + (boardLen - row) + 2
+                            ourKing += 1
                         else:
-                            ourCount += 5 + (boardLen - row)
+                            ourPawn += 1
                     elif checkerPiece.color == "B": #opponent piece
+                        oppRow += row
+                        if row >= 2 and row <= middleRowEnd and col >= 2 and col <= middleColEnd:
+                            oppMiddle += 1
+
                         if checkerPiece.is_king:
-                            oppCount += 5 + (row + 1) + 2
+                            oppKing += 1
                         else:
-                            oppCount += 5 + (row + 1)
+                            oppPawn += 1
         
-        return ourCount - oppCount
+        return (80 * ( (ourPawn - oppPawn) + 2.5 * (ourKing - oppKing) )) + (40 * (ourRow - oppRow)) + (20 * (ourMiddle - oppMiddle)) 
+
+    def ieeeEvaluation2(self, state):
+        ourPawn = 0
+        ourKing = 0
+        ourMiddle = 0
+        ourRow = 0
+        oppPawn = 0
+        oppKing = 0
+        oppMiddle = 0
+        oppRow = 0
+        boardRowLen = len(state.board)
+        middleRowEnd = len(state.board) - 3
+        middleColEnd = len(state.board[0]) - 3
+        for row in range(0, len(state.board)):
+            for col in range(0, len(state.board[row])):
+                checkerPiece = state.board[row][col]
+
+                if self.color == 1:
+                    if checkerPiece.color == "B": #our piece
+                        ourRow += boardRowLen - row - 1
+                        if row >= 2 and row <= middleRowEnd and col >= 2 and col <= middleColEnd:
+                            ourMiddle += 1 
+
+                        if checkerPiece.is_king:
+                            ourKing += 1
+                        else: 
+                            ourPawn += 1
+                        
+                    elif checkerPiece.color == "W": #their piece
+                        oppRow += row
+                        if row >= 2 and row <= middleRowEnd and col >= 2 and col <= middleColEnd:
+                            oppMiddle += 1
+
+                        if checkerPiece.is_king:
+                            oppKing += 1
+                        else:
+                            oppPawn += 1
+                elif self.color == 2:
+                    if checkerPiece.color == "W": #our piece
+                        ourRow += row
+                        if row >= 2 and row <= middleRowEnd and col >= 2 and col <= middleColEnd:
+                            ourMiddle += 1
+
+                        if checkerPiece.is_king:
+                            ourKing += 1
+                        else:
+                            ourPawn += 1
+                    elif checkerPiece.color == "B": #opponent piece
+                        oppRow += boardRowLen - row - 1
+                        if row >= 2 and row <= middleRowEnd and col >= 2 and col <= middleColEnd:
+                            oppMiddle += 1
+
+                        if checkerPiece.is_king:
+                            oppKing += 1
+                        else:
+                            oppPawn += 1
+        
+        return (80 * ( (ourPawn - oppPawn) + 2.5 * (ourKing - oppKing) )) + (40 * (ourRow - oppRow)) + (20 * (ourMiddle - oppMiddle)) 
+
+    # def lateGameKingEval(self, state, ourKings, oppKings, oppPawns):
+    #     ourDistance = 0
+    #     numOurKings = len(ourKings)
+    #     numOppKings = len(oppKings)
+    #     numOppPawns = len(oppPawns)
+    #     for ourKing in ourKings:
+    #         for oppKing in oppKings:
+    #             checkersDistance = max(abs(ourKing[0] - oppKing[0]), abs(ourKing[1] - oppKing[1]))
+    #             ourDistance += checkersDistance
+    #         for oppPawn in oppPawns:
+    #             checkersDistance = max(abs(ourKing[0] - oppPawn[0]), abs(ourKing[1] - oppPawn[1]))
+    #             ourDistance += checkersDistance
+
+
+    #     if len(ourKings) > len(oppKings): #attack
+    #         return (1000 * ( 2.5 * (numOurKings - numOppKings) - numOppPawns ) ) + round((1/ourDistance) * 100)
+    #     else: #run away
+    #         return (1000 * ( 2.5 * (numOurKings - numOppKings) - numOppPawns ) ) + 40 * ourDistance
+
+
+    # def getEarlyOrLate(self, state):
+    #     #return list of gameboard state [0 or 1 (early or lategame), ourKings, oppKings]
+    #     #return 0 if early, or 1 if late
+    #     numOurCheckers = 0
+    #     numOurKings = 0
+    #     ourKings = []
+    #     oppKings = []
+    #     oppPawns = []
+    #     for row in range(0, len(state.board)):
+    #         for col in range(0, len(state.board[row])):
+    #             checkerPiece = state.board[row][col]
+
+    #             if self.color == 1:
+    #                 if checkerPiece.color == "B":
+    #                     numOurCheckers += 1
+    #                     if checkerPiece.is_king:
+    #                         numOurKings += 1
+    #                         ourKings.append((row, col))
+    #                 elif checkerPiece.color == "W":
+    #                     if checkerPiece.is_king:
+    #                         oppKings.append((row, col))
+    #                     else:
+    #                         oppPawns.append((row, col))
+    #             elif self.color == 2:
+    #                 if checkerPiece.color == "W":
+    #                     numOurCheckers += 1
+    #                     if checkerPiece.is_king:
+    #                         numOurKings += 1
+    #                         ourKings.append((row, col))
+    #                 elif checkerPiece.color == "B":
+    #                     if checkerPiece.is_king:
+    #                         oppKings.append((row, col))
+    #                     else:
+    #                         oppPawns.append((row, col))
+
+    #     if numOurCheckers == 0:
+    #         return [-1, ourKings, oppKings, oppPawns]                
+
+    #     if numOurKings/numOurCheckers == 1:
+    #         return [1, ourKings, oppKings, oppPawns]
+    #     else:
+    #         return [0, ourKings, oppKings, oppPawns]
+
+
+    # def countOurPieces(self, state):
+    #     ongoing = 0
+    #     for row in range(0, len(state.board)):
+    #         for col in range(0, len(state.board[row])):
+    #             checkerPiece = state.board[row][col]
+                
+    #             if self.color == 1:
+    #                 if checkerPiece.color == "B":
+    #                     ongoing += 1
+    #             elif self.color == 2:
+    #                 if checkerPiece.color == "W":
+    #                     ongoing += 1
+    #     return ongoing
+
+    # #black always starts from 0,0 while white starts on the other side
+    # def pieceAndRowEval(self, state):
+    #     ourCount = 0
+    #     oppCount = 0
+    #     boardLen = len(state.board)
+    #     for row in range(0, len(state.board)):
+    #         for col in range(0, len(state.board[row])):
+    #             checkerPiece = state.board[row][col]
+
+    #             if self.color == 1:
+    #                 if checkerPiece.color == "B": #our piece
+    #                     if checkerPiece.is_king:
+    #                         ourCount += 5 + (row + 1) + 2
+    #                     else: #in our half
+    #                         ourCount += 5 + (row + 1)
+                        
+    #                 elif checkerPiece.color == "W": #their piece
+    #                     if checkerPiece.is_king:
+    #                         oppCount += 5 + (boardLen - row) + 2
+    #                     else:
+    #                         oppCount += 5 + (boardLen - row)
+
+    #             elif self.color == 2:
+    #                 if checkerPiece.color == "W": #our piece
+    #                     if checkerPiece.is_king:
+    #                         ourCount += 5 + (boardLen - row) + 2
+    #                     else:
+    #                         ourCount += 5 + (boardLen - row)
+    #                 elif checkerPiece.color == "B": #opponent piece
+    #                     if checkerPiece.is_king:
+    #                         oppCount += 5 + (row + 1) + 2
+    #                     else:
+    #                         oppCount += 5 + (row + 1)
+        
+    #     return ourCount - oppCount
 
 
     # #black always starts from 0,0 while white starts on the other side
@@ -415,63 +625,3 @@ class StudentAI():
                 #         oppCount += 2
                 #     else:
                 #         oppCount += 1
-
-
-    #black always starts from 0,0 while white starts on the other side
-    def ieeeEvaluation(self, state):
-        ourPawn = 0
-        ourKing = 0
-        ourMiddle = 0
-        ourRow = 0
-        oppPawn = 0
-        oppKing = 0
-        oppMiddle = 0
-        oppRow = 0
-        boardRowLen = len(state.board)
-        middleRowEnd = len(state.board) - 3
-        middleColEnd = len(state.board[0]) - 3
-        for row in range(0, len(state.board)):
-            for col in range(0, len(state.board[row])):
-                checkerPiece = state.board[row][col]
-
-                if self.color == 1:
-                    if checkerPiece.color == "B": #our piece
-                        ourRow += row
-                        if row >= 2 and row <= middleRowEnd and col >= 2 and col <= middleColEnd:
-                            ourMiddle += 1 
-
-                        if checkerPiece.is_king:
-                            ourKing += 1
-                        else: 
-                            ourPawn += 1
-                        
-                    elif checkerPiece.color == "W": #their piece
-                        oppRow += boardRowLen - row - 1
-                        if row >= 2 and row <= middleRowEnd and col >= 2 and col <= middleColEnd:
-                            oppMiddle += 1
-
-                        if checkerPiece.is_king:
-                            oppKing += 1
-                        else:
-                            oppPawn += 1
-                elif self.color == 2:
-                    if checkerPiece.color == "W": #our piece
-                        ourRow += boardRowLen - row - 1
-                        if row >= 2 and row <= middleRowEnd and col >= 2 and col <= middleColEnd:
-                            ourMiddle += 1
-
-                        if checkerPiece.is_king:
-                            ourKing += 1
-                        else:
-                            ourPawn += 1
-                    elif checkerPiece.color == "B": #opponent piece
-                        oppRow += row
-                        if row >= 2 and row <= middleRowEnd and col >= 2 and col <= middleColEnd:
-                            oppMiddle += 1
-
-                        if checkerPiece.is_king:
-                            oppKing += 1
-                        else:
-                            oppPawn += 1
-        
-        return (80 * ( (ourPawn - oppPawn) + 2.5 * (ourKing - oppKing) )) + (40 * (ourRow - oppRow)) + (20 * (ourMiddle - oppMiddle)) 
